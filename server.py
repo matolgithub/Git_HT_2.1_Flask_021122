@@ -81,9 +81,24 @@ def validate(data_to_validate: dict, validation_class: Type[CreateAdsSchema]):
         raise HttpError(400, err.errors())
 
 
+def get_by_id(item_id: int, orm_model: Type[AdsModel], session: Session):
+    orm_item = session.query(orm_model).get(item_id)
+    if orm_item is None:
+        raise HttpError(404, "Ads not found.")
+    return orm_item
+
+
 class AdsView(MethodView):
-    def get(self):
-        pass
+    def get(self, ads_id: int):
+        with Session() as session:
+            ads = session.query(AdsModel).get(ads_id)
+            if ads is None:
+                raise HttpError(404, f"There are not ads with id: {ads_id}.")
+            return jsonify({
+                "ads title": ads.title,
+                "ads description": ads.description,
+                "owner": ads.owner
+            })
 
     def post(self):
         json_data = request.json
@@ -93,10 +108,17 @@ class AdsView(MethodView):
             session.commit()
             return jsonify({"status": "OK", "id": new_ads.id})
 
-    def delete(self):
-        pass
+    def delete(self, ads_id: int):
+        with Session() as session:
+            ads = get_by_id(ads_id, AdsModel, session)
+            if ads is None:
+                raise HttpError(404, f"There are not ads with id: {ads_id}.")
+            session.delete(ads)
+            session.commit()
+            return jsonify({"status": "successfully deleted"})
 
 
-app.add_url_rule("/ads/", view_func=AdsView.as_view("ads_create"), methods=["GET", "POST", "DELETE"])
+app.add_url_rule("/ads/<int:ads_id>", view_func=AdsView.as_view("ads_get"), methods=["GET", "DELETE"])
+app.add_url_rule("/ads/", view_func=AdsView.as_view("ads_create"), methods=["POST"])
 
 app.run()
